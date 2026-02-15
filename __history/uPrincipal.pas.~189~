@@ -1,0 +1,311 @@
+unit uPrincipal;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, REST.Types, REST.Client,
+  Data.Bind.Components, Data.Bind.ObjectScope, Vcl.ExtCtrls, Vcl.StdCtrls, System.JSON, System.Net.HttpClient,
+  System.Net.HttpClientComponent, Vcl.Buttons, Vcl.DBCtrls, Vcl.Clipbrd;
+
+type
+  TfPrincipal = class(TForm)
+    TRESTRequest1: TRESTRequest;
+    RESTRM: TRESTClient;
+    RESTResponse1: TRESTResponse;
+    ScrollBox1: TScrollBox;
+    Panel1: TPanel;
+    edPesquisa: TEdit;
+    Panel2: TPanel;
+    btnBusca: TSpeedButton;
+    PnlBottom: TPanel;
+    pnlNav: TPanel;
+    SpeedButton2: TSpeedButton;
+    SpeedButton3: TSpeedButton;
+
+    procedure FormMouseWheel(Sender: TObject; Shift: TShiftState;
+      WheelDelta: Integer; MousePos: TPoint; var Handled: Boolean);
+    procedure FormShow(Sender: TObject);
+    procedure btnBuscaClick(Sender: TObject);
+    procedure FormResize(Sender: TObject);
+    procedure FormCreate(Sender: TObject);
+    procedure SpeedButton3Click(Sender: TObject);
+    procedure SpeedButton2Click(Sender: TObject);
+  private
+    pag: integer;
+    procedure CarregarImagem(const URL: string; Img: TImage);
+    procedure Arredondar(Control: TWinControl);
+    function cardTamanhoWidth(tamanhoWi: integer): integer;
+    procedure arredondaCompo(Control: TWinControl);
+    procedure lblMeuLd(Sender: TObject);
+
+    { Private declarations }
+
+  public
+    { Public declarations }
+  end;
+
+const
+  URLCharacter = 'https://rickandmortyapi.com/api/character';
+
+var
+  fPrincipal: TfPrincipal;
+
+implementation
+
+{$R *.dfm}
+
+procedure TfPrincipal.btnBuscaClick(Sender: TObject);
+var
+  JsonObj,jsonObjOrigem, jsonObjLocation, CharObj: TJSONObject;
+  Results: TJSONArray;
+  I,J, K, W: Integer;
+  Panel, PnlEspaco, PnlIcon: TPanel;
+  LblNome,lblOrigem ,lblOrigem2, lblLocation, lblLocation2 , LblInfo, lblMeuLd: TLabel;
+  Img: TImage;
+  Flow: TFlowPanel;
+begin
+  while ScrollBox1.ControlCount > 0 do
+    ScrollBox1.Controls[0].Free;
+
+  RESTRM.BaseURL := 'https://rickandmortyapi.com/api/character/?page='+IntToStr(pag);
+  TRESTRequest1.Method := rmGET;
+  TRESTRequest1.Execute;
+
+  JsonObj := RESTResponse1.JSONValue as TJSONObject;
+  Results := JsonObj.GetValue('results') as TJSONArray;
+
+
+  Flow := TFlowPanel.Create(ScrollBox1);
+  Flow.Parent := ScrollBox1;
+  Flow.Align := alTop;
+  Flow.AutoSize := true;
+  Flow.BevelOuter := bvNone;
+  Flow.ParentBackground := False;
+  Flow.Color := ScrollBox1.Color;
+
+
+  for I := 0 to Results.Count - 1 do
+  begin
+    CharObj := Results.Items[I] as TJSONObject;
+
+    //painel pai para poder criar espaçamento Visual
+    PnlEspaco := TPanel.Create(Flow);
+    PnlEspaco.Parent := Flow;
+//    PnlEspaco.Width := 630;
+    W := cardTamanhoWidth(Flow.ClientWidth);
+    PnlEspaco.Width := W;
+    PnlEspaco.Height := 300;
+    PnlEspaco.Caption := '';
+    PnlEspaco.BevelOuter := bvNone;
+    PnlEspaco.Color := flow.Color;
+    PnlEspaco.ParentBackground := False;
+
+    //painel filho mostrando os cards
+    Panel := TPanel.Create(PnlEspaco);
+    Panel.Parent := PnlEspaco;
+    Panel.SetBounds(15, 15,  PnlEspaco.Width - 30, PnlEspaco.Height - 30);
+    Panel.Caption := '';
+    Panel.BevelOuter := bvNone;
+    Panel.ParentBackground := False;
+    Panel.Color := $00443E3C;
+
+    //icon de vivo/morto
+    PnlIcon := TPanel.Create(Panel);
+    PnlIcon.Parent := Panel;
+    PnlIcon.BevelOuter := bvNone;
+    PnlIcon.Caption := '';
+    PnlIcon.Left := 315;
+    PnlIcon.Top := 53;
+    PnlIcon.Width := 10;
+    PnlIcon.Height := 10;
+    PnlIcon.ParentBackground := false;
+    PnlIcon.Color := clred;
+
+    if CharObj.GetValue('status').Value <> 'Alive' then
+      PnlIcon.Color := clRed
+    else
+      PnlIcon.Color := clGreen;
+
+    Arredondar(PnlIcon);
+
+    //nome
+    LblNome := TLabel.Create(Panel);
+    LblNome.Parent := Panel;
+    LblNome.Left := 315;
+    LblNome.Top := 10;
+    LblNome.Font.Style := [fsBold];
+    LblNome.Font.Size := 13;
+    LblNome.Font.Color := clwhite;
+    LblNome.Caption := CharObj.GetValue('name').Value;
+
+    //info de vivo/morto...
+    LblInfo := TLabel.Create(Panel);
+    LblInfo.Parent := Panel;
+    LblInfo.Left := 340;
+    LblInfo.Top := 50;
+    LblInfo.Font.Style := [fsBold];
+    LblInfo.Font.Color := clwhite;
+    LblInfo.Caption := CharObj.GetValue<string>('status') + ' | ' +
+                       CharObj.GetValue<string>('species') + ' | ' +
+                       CharObj.GetValue<string>('gender');
+
+    lblOrigem2 := TLabel.Create(Panel);
+    lblOrigem2.Parent := Panel;
+    lblOrigem2.Font.Style := [fsBold];
+    lblOrigem2.Font.Color := clgray;
+    lblOrigem2.Left := 315;
+    lblOrigem2.Top := 80;
+    lblOrigem2.Caption := 'Last known location:';
+
+    lblOrigem := TLabel.Create(Panel);
+    lblOrigem.Parent := Panel;
+    lblOrigem.Font.Style := [fsBold];
+    lblOrigem.Font.Color := clwhite;
+    lblOrigem.Left := 315;
+    lblOrigem.Top := 97;
+
+    jsonObjOrigem := CharObj.GetValue('origin') as TJSONObject;
+    lblOrigem.Caption := jsonObjOrigem.GetValue<string>('name');
+
+    lblLocation2 := TLabel.Create(Panel);
+    lblLocation2.Parent := Panel;
+    lblLocation2.Font.Style := [fsBold];
+    lblLocation2.Font.Color := clGray;
+    lblLocation2.Left := 315;
+    lblLocation2.Top := 120;
+    lblLocation2.Caption := 'First seen in:';
+
+    lblLocation := TLabel.Create(Panel);
+    lblLocation.Parent := Panel;
+    lblLocation.Font.Style := [fsBold];
+    lblLocation.Font.Color := clwhite;
+    lblLocation.Left := 315;
+    lblLocation.Top := 137;
+
+    jsonObjLocation := CharObj.GetValue('location') as TJSONObject;
+    lblLocation.Caption := jsonObjLocation.GetValue<string>('name');
+
+    Img := TImage.Create(Panel);
+    Img.Parent := Panel;
+    Img.SetBounds(0, 0, 300, 300);
+    Img.Stretch := True;
+    CarregarImagem(CharObj.GetValue<string>('image'),Img);
+
+
+
+    lblMeuLd := TLabel.Create(Panel);
+    lblMeuLd.Parent := Panel;
+    lblMeuLd.Font.Style := [fsBold];
+    lblMeuLd.Font.Color := clwhite;
+    lblMeuLd.Left := 315;
+    lblMeuLd.Top := 240;
+    lblMeuLd.Caption := 'linkedin.com/in/gustavorodev'
+
+  end;
+end;
+
+procedure TfPrincipal.SpeedButton2Click(Sender: TObject);
+begin
+  if pag <> 1 then
+    pag := pag - 1;
+  pnlNav.Caption := IntToStr(pag);
+  btnBuscaClick(Sender);
+end;
+
+procedure TfPrincipal.SpeedButton3Click(Sender: TObject);
+begin
+  pag := pag + 1;
+  pnlNav.Caption := IntToStr(pag);
+  btnBuscaClick(Sender);
+end;
+
+procedure TfPrincipal.Arredondar(Control: TWinControl);
+var
+  Rgn: HRGN;
+begin
+  Rgn := CreateEllipticRgn(0, 0, Control.Width, Control.Height);
+  SetWindowRgn(Control.Handle, Rgn, True);
+end;
+
+procedure TfPrincipal.CarregarImagem(const URL: string; Img: TImage);
+var
+  HTTP: TNetHTTPClient;
+  Stream: TMemoryStream;
+begin
+  HTTP := TNetHTTPClient.Create(nil);
+  Stream := TMemoryStream.Create;
+  try
+    HTTP.Get(URL, Stream);
+    Stream.Position := 0;
+    Img.Picture.LoadFromStream(Stream);
+  finally
+    Stream.Free;
+    HTTP.Free;
+  end;
+end;
+
+procedure TfPrincipal.FormCreate(Sender: TObject);
+begin
+  pag := 1;
+end;
+
+procedure TfPrincipal.FormMouseWheel(Sender: TObject; Shift: TShiftState;
+  WheelDelta: Integer; MousePos: TPoint; var Handled: Boolean);
+begin
+  ScrollBox1.VertScrollBar.Position :=
+    ScrollBox1.VertScrollBar.Position - WheelDelta;
+
+  Handled := True;
+end;
+
+procedure TfPrincipal.FormResize(Sender: TObject);
+begin
+  pnlNav.Left :=
+    (PnlBottom.ClientWidth - pnlNav.Width) div 2;
+
+  pnlNav.Top :=
+    (PnlBottom.ClientHeight - pnlNav.Height) div 2;
+end;
+
+procedure TfPrincipal.FormShow(Sender: TObject);
+begin
+  arredondaCompo(edPesquisa);
+end;
+
+
+
+function TfPrincipal.cardTamanhoWidth(tamanhoWi:integer):integer;
+begin
+  if tamanhoWi >= 1200 then
+    Result := 600
+  else if tamanhoWi >= 800 then
+    Result := 700
+  else
+    result := tamanhoWi - 40;
+end;
+
+procedure TfPrincipal.arredondaCompo(Control: TWinControl);
+var
+  R: TRect;
+  Rgn: HRGN;
+begin
+  with Control do
+  begin
+    R := ClientRect;
+    rgn := CreateRoundRectRgn(R.Left, R.Top, R.Right, R.Bottom, 20, 20);
+    Perform(EM_GETRECT, 0, lParam(@R));
+    InflateRect(R, -5, -5);
+    Perform(EM_SETRECTNP, 0, lParam(@R));
+    SetWindowRgn(Handle, rgn, True);
+    Invalidate;
+  end;
+end;
+
+procedure TfPrincipal.lblMeuLd(Sender: TObject);
+begin
+  Clipboard.AsText := lblMeuLd.Caption;
+  ShowMessage('Texto copiado!');
+end;
+
+end.
